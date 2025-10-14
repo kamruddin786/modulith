@@ -48,6 +48,7 @@ OrderService → EventPublication → InventoryEventListener
 - Asynchronous communication between modules
 - Loose coupling between order and inventory domains
 - Event externalization to RabbitMQ for cross-service communication
+- Configurable event exchange via Spring Modulith's `@Externalized` annotation
 
 ### Event Resume Capabilities
 - **Event Publication Tracking**: All events are tracked in database with completion status
@@ -193,6 +194,13 @@ spring.datasource.password=secret
 spring.modulith.events.jdbc.schema-initialization.enabled=true
 spring.modulith.events.externalization.enabled=true
 spring.modulith.events.republish-outstanding-events-on-restart=true
+
+# AMQP Configuration for RabbitMQ
+spring.rabbitmq.host=localhost
+spring.rabbitmq.port=5672
+spring.rabbitmq.username=myuser
+spring.rabbitmq.password=secret
+spring.rabbitmq.virtual-host=/
 ```
 
 ### Environment Variables
@@ -237,10 +245,11 @@ mvn test jacoco:report
 
 1. **Event Publication**: When an order is placed, an `OrderPlacedEvent` is published
 2. **Tracking**: Spring Modulith tracks the publication in the `event_publication` table
-3. **Processing**: The inventory listener processes the event and updates stock
-4. **Completion**: Successful processing marks the publication as completed
-5. **Failure Handling**: If processing fails, the publication remains incomplete
-6. **Resume**: On application restart, incomplete publications are automatically retried
+3. **RabbitMQ Externalization**: Events are externalized to RabbitMQ using the configured exchange
+4. **Processing**: The inventory listener processes the event and updates stock
+5. **Completion**: Successful processing marks the publication as completed
+6. **Failure Handling**: If processing fails, the publication remains incomplete
+7. **Resume**: On application restart, incomplete publications are automatically retried
 
 ### Manual Event Management
 
@@ -260,7 +269,45 @@ eventService.resubmitFailedPublications();
 eventService.resubmitIncompletePublicationsOlderThan(Duration.ofHours(1));
 ```
 
-## 📊 Monitoring
+## � RabbitMQ Integration
+
+### Configuration
+
+The application uses a dedicated configuration class to set up RabbitMQ for event externalization:
+
+```java
+@Configuration
+public class RabbitMQConfig {
+    @Value("${spring.application.name}")
+    private String applicationName;
+
+    @Bean
+    public Exchange exchange() {
+        // Create a Topic exchange with the application name
+        return new TopicExchange(applicationName, true, false);
+    }
+    
+    @Bean
+    public AmqpAdmin amqpAdmin(ConnectionFactory connectionFactory) {
+        return new RabbitAdmin(connectionFactory);
+    }
+}
+```
+
+This creates a durable Topic exchange named `modulith` (from application name) to which all externalized events are published.
+
+### Event Externalization
+
+Events are marked for externalization using the `@Externalized` annotation:
+
+```java
+@Externalized
+public class OrderPlacedEvent implements Serializable {
+    // Event properties
+}
+```
+
+## �📊 Monitoring
 
 ### H2 Console (Development)
 
@@ -276,6 +323,11 @@ Access RabbitMQ management UI at: `http://localhost:15672`
 
 - **Username**: `myuser`
 - **Password**: `secret`
+
+Key RabbitMQ components to monitor:
+- **Exchanges**: Look for the `modulith` exchange created automatically
+- **Queues**: Monitor message processing and consumption
+- **Connections**: Verify application connectivity
 
 ## 🐳 Docker Support
 
@@ -305,18 +357,6 @@ mvn spring-boot:build-image
 docker run --network host spring-modulith-app:latest
 ```
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
 ## 📚 Additional Resources
 
 - [Spring Modulith Documentation](https://docs.spring.io/spring-modulith/reference/)
@@ -338,6 +378,11 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 3. **RabbitMQ Connection Issues**
    - Verify RabbitMQ is running: `docker-compose logs rabbitmq`
    - Check credentials in `compose.yaml`
+   - Confirm exchange creation in RabbitMQ management UI
+
+4. **Event Externalization Failures**
+   - Check that the RabbitMQ exchange matches the one used by Spring Modulith
+   - Verify the `@Externalized` annotation is correctly applied to event classes
 
 4. **Port Conflicts**
    - PostgreSQL uses port 5432
@@ -351,14 +396,5 @@ Run with debug logging:
 ```bash
 mvn spring-boot:run -Dspring-boot.run.arguments="--debug"
 ```
-
-## 📞 Support
-
-For questions or issues:
-- Create an issue in the repository
-- Check existing issues for similar problems
-- Review the Spring Modulith documentation
-
----
 
 **Built with ❤️ using Spring Modulith**
