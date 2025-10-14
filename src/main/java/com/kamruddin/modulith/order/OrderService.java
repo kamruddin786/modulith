@@ -30,8 +30,8 @@ public class OrderService {
         order.setStatus("PLACED");
         order.setOrderDate(LocalDateTime.now());
         Order saved = orderRepository.save(order);
-        // Publish event
-        eventPublisher.publishEvent(new OrderPlacedEvent(saved.getProductId(), saved.getQuantity()));
+        // Publish event with order ID for better tracking
+        eventPublisher.publishEvent(new OrderPlacedEvent(saved.getProductId(), saved.getQuantity(), saved.getId()));
         return saved;
     }
 
