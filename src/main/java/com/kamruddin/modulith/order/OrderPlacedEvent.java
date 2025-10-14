@@ -1,5 +1,9 @@
 package com.kamruddin.modulith.order;
 
+import java.io.Serializable;
+
+import org.springframework.modulith.events.Externalized;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -7,7 +11,10 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderPlacedEvent {
+@Externalized
+public class OrderPlacedEvent implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private Long productId;
     private Integer quantity;

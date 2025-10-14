@@ -1,8 +1,7 @@
 package com.kamruddin.modulith.inventory;
 
-import org.springframework.context.event.EventListener;
+import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.kamruddin.modulith.order.OrderPlacedEvent;
 
@@ -16,11 +15,12 @@ public class InventoryEventListener {
 
     private final ProductService productService;
 
-    @EventListener
-    @Transactional
+    @ApplicationModuleListener
     public void handleOrderPlaced(OrderPlacedEvent event) {
-        log.info("Received OrderPlacedEvent for order {}: product {} with quantity {}",
+        log.info("=== RECEIVED OrderPlacedEvent ===");
+        log.info("Event details - Order ID: {}, Product ID: {}, Quantity: {}", 
                 event.getOrderId(), event.getProductId(), event.getQuantity());
+        log.info("Processing inventory update...");
 
         try {
             boolean success = productService.updateStock(event.getProductId(), event.getQuantity());
