@@ -76,6 +76,7 @@ OrderService → EventPublication → InventoryEventListener
 - **Message Broker**: RabbitMQ 4.1.4
 - **Build Tool**: Maven
 - **Container**: Docker & Docker Compose
+- **Orchestration**: Kubernetes (GKE-compatible)
 - **Testing**: JUnit 5, Spring Boot Test, ArchUnit
 
 ## 📋 Prerequisites
@@ -170,7 +171,8 @@ curl -X POST http://localhost:8080/api/orders \
 
 - **products**: Product catalog with pricing and stock information
 - **orders**: Customer orders with references to products
-- **event_publication**: Spring Modulith event publication tracking (auto-created)
+- **event_publication**: Spring Modulith event publication tracking with UUID primary key
+- **INT_LOCK**: Spring Integration distributed lock table for synchronization
 
 ### Sample Data
 
@@ -190,16 +192,18 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/mydatabase?timezone=UTC
 spring.datasource.username=myuser
 spring.datasource.password=secret
 
-# Spring Modulith Events
-spring.modulith.events.jdbc.schema-initialization.enabled=true
+# Spring Modulith Event Store Configuration
+spring.modulith.events.jdbc.schema-initialization.enabled=false
 spring.modulith.events.externalization.enabled=true
+spring.modulith.events.jdbc.event-publication-table-name=event_publication
 spring.modulith.events.republish-outstanding-events-on-restart=true
+spring.main.allow-bean-definition-overriding=true
 
 # AMQP Configuration for RabbitMQ
-spring.rabbitmq.host=localhost
-spring.rabbitmq.port=5672
-spring.rabbitmq.username=myuser
-spring.rabbitmq.password=secret
+spring.rabbitmq.host=${SPRING_RABBITMQ_HOST:localhost}
+spring.rabbitmq.port=${SPRING_RABBITMQ_PORT:5672}
+spring.rabbitmq.username=${SPRING_RABBITMQ_USERNAME:myuser}
+spring.rabbitmq.password=${SPRING_RABBITMQ_PASSWORD:secret}
 spring.rabbitmq.virtual-host=/
 ```
 
@@ -244,12 +248,13 @@ mvn test jacoco:report
 ### How It Works
 
 1. **Event Publication**: When an order is placed, an `OrderPlacedEvent` is published
-2. **Tracking**: Spring Modulith tracks the publication in the `event_publication` table
+2. **Tracking**: Spring Modulith tracks the publication in the `event_publication` table with UUID primary key
 3. **RabbitMQ Externalization**: Events are externalized to RabbitMQ using the configured exchange
 4. **Processing**: The inventory listener processes the event and updates stock
 5. **Completion**: Successful processing marks the publication as completed
 6. **Failure Handling**: If processing fails, the publication remains incomplete
 7. **Resume**: On application restart, incomplete publications are automatically retried
+8. **Distributed Locking**: The INT_LOCK table ensures safe operation across multiple instances
 
 ### Manual Event Management
 
@@ -357,12 +362,46 @@ mvn spring-boot:build-image
 docker run --network host spring-modulith-app:latest
 ```
 
+## 🚀 Kubernetes Deployment
+
+This application is configured to run on Kubernetes, focusing on resilience and scalability.
+
+### Prerequisites
+
+- Kubernetes cluster (GKE or any other Kubernetes environment)
+- kubectl CLI installed and configured
+- Java 21 and Maven installed
+
+### Deployment
+
+```bash
+# Create a secrets file from the template
+cp k8s/secrets.yaml.template k8s/secrets.yaml
+
+# Apply Kubernetes configurations
+kubectl apply -f k8s/
+```
+
+### Multi-replica Architecture
+
+The application has been specifically optimized for running multiple replicas:
+
+1. **Shared RabbitMQ Queue**: All instances share a single durable queue named `order.events.queue`
+2. **Competing Consumers Pattern**: Messages are distributed among replicas (not duplicated)
+3. **Idempotent Processing**: Event handlers are designed to be safely retriable
+4. **Manual Acknowledgment**: Messages are only acknowledged after successful processing
+5. **Distributed Database Locks**: Prevents concurrent processing of the same event using INT_LOCK table
+
+For local development, the deployment is configured with a single replica to conserve resources.
+
 ## 📚 Additional Resources
 
 - [Spring Modulith Documentation](https://docs.spring.io/spring-modulith/reference/)
 - [Spring Boot Reference](https://docs.spring.io/spring-boot/3.5.6/reference/)
 - [Spring Data JDBC](https://docs.spring.io/spring-boot/3.5.6/reference/data/sql.html#data.sql.jdbc)
 - [RabbitMQ Documentation](https://www.rabbitmq.com/documentation.html)
+- [Spring Integration JDBC](https://docs.spring.io/spring-integration/reference/jdbc.html)
+- [PostgreSQL UUID Data Type](https://www.postgresql.org/docs/current/datatype-uuid.html)
 
 ## 🆘 Troubleshooting
 
@@ -372,8 +411,9 @@ docker run --network host spring-modulith-app:latest
    - Ensure PostgreSQL is running: `docker-compose ps`
    - Check connection settings in `application.properties`
 
-2. **Event Publication Table Missing**
-   - Enable schema initialization: `spring.modulith.events.jdbc.schema-initialization.enabled=true`
+- **Event Publication Table Missing**
+   - Ensure schema.sql is properly executed: `spring.sql.init.mode=always`
+   - Verify UUID data type in event_publication table for PostgreSQL compatibility
 
 3. **RabbitMQ Connection Issues**
    - Verify RabbitMQ is running: `docker-compose logs rabbitmq`
