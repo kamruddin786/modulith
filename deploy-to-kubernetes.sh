@@ -50,12 +50,6 @@ kubectl apply -f k8s/rabbitmq.yaml
 echo "Waiting for deployments to be ready..."
 kubectl wait --for=condition=available --timeout=120s deployment/postgres deployment/rabbitmq
 
-# Ensure PostgreSQL is fully initialized
-echo "Running database initialization check..."
-kubectl apply -f k8s/postgres-init.yaml
-echo "Waiting for PostgreSQL to be ready for connections..."
-kubectl wait --for=condition=complete --timeout=60s job/postgres-init
-
 # Apply application resources
 echo "Applying application manifests..."
 kubectl apply -f k8s/secrets.yaml
