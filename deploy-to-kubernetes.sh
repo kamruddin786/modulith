@@ -36,10 +36,6 @@ if [ ! -f "k8s/secrets.yaml" ]; then
   exit 0
 fi
 
-# Update deployment.yaml to use local image
-echo "Updating Kubernetes manifests..."
-sed -i.bak "s|\${DOCKER_REGISTRY}/|localhost/|g" k8s/deployment.yaml
-
 # Apply infrastructure resources first
 echo "Deploying PostgreSQL..."
 kubectl apply -f k8s/postgres.yaml
