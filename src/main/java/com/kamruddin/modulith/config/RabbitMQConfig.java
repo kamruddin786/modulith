@@ -23,27 +23,28 @@ public class RabbitMQConfig {
     // Define exchange name constants
     public static final String MODULITH_EXCHANGE = "modulith";
     public static final String ORDER_EVENTS_QUEUE = "order.events.queue";
-    public static final String ORDER_EVENTS_ROUTING_KEY = "order.*";
     
     @Bean
     public TopicExchange exchange() {
         // Create a Topic exchange with the application name
         return new TopicExchange(MODULITH_EXCHANGE, true, false);
     }
-    
+
+    @Bean
+    public TopicExchange orderPlacedEventExchange() {
+        return new TopicExchange("order.OrderPlacedEvent", true, false);
+    }
+
     @Bean
     public Queue orderEventsQueue() {
         // Create a durable queue for order events
         // This queue will be shared across all instances
         return new Queue(ORDER_EVENTS_QUEUE, true);
     }
-    
+
     @Bean
-    public Binding binding() {
-        // Bind the queue to the exchange with a routing key pattern
-        return BindingBuilder.bind(orderEventsQueue())
-                .to(exchange())
-                .with(ORDER_EVENTS_ROUTING_KEY);
+    public Binding orderEventsBinding(Queue orderEventsQueue, TopicExchange orderPlacedEventExchange) {
+        return BindingBuilder.bind(orderEventsQueue).to(orderPlacedEventExchange).with("order.placed");
     }
     
     @Bean

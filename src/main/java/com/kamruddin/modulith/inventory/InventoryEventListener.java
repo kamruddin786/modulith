@@ -26,21 +26,21 @@ public class InventoryEventListener {
     private final ProductService productService;
     private final LockRegistry lockRegistry;
 
-    // Keep the internal event listener for local module communication
-    @ApplicationModuleListener
-    public void handleInternalOrderPlaced(OrderPlacedEvent event) {
-        // This will handle events within the same application instance (non-externalized)
-        processOrderPlacedEvent(event);
-    }
-    
+    // Internal event listener disabled - we only want external RabbitMQ events
+//     @ApplicationModuleListener
+//     public void handleInternalOrderPlaced(OrderPlacedEvent event) {
+//         // This would handle events within the same application instance (non-externalized)
+//         processOrderPlacedEvent(event);
+//     }
+
     // Add RabbitMQ listener for external events from the queue
     @RabbitListener(queues = RabbitMQConfig.ORDER_EVENTS_QUEUE, containerFactory = "rabbitListenerContainerFactory")
     @Transactional
-    public void handleExternalOrderPlaced(OrderPlacedEvent event, 
-                                        Channel channel, 
+    public void handleExternalOrderPlaced(OrderPlacedEvent event,
+                                        Channel channel,
                                         @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
         log.info("=== RECEIVED EXTERNALIZED OrderPlacedEvent via RabbitMQ ===");
-        
+
         // Create a lock key based on the order ID to prevent concurrent processing
         String lockKey = "order-" + event.getOrderId();
         Lock lock = lockRegistry.obtain(lockKey);

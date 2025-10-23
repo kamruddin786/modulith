@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Externalized
+@Externalized(target = "order.OrderPlacedEvent::order.placed")
 public class OrderPlacedEvent implements Serializable {
 
     private static final long serialVersionUID = 1L;
